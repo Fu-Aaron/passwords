@@ -1,52 +1,67 @@
  #include <openssl/evp.h>
  #include <stdio.h>
  #include <stdlib.h>
+ #include <string.h>
 
- int do_crypt(FILE *in, FILE *out, int do_encrypt)
- {
-     /* Allow enough space in output buffer for additional block */
-     unsigned char inbuf[1024], outbuf[1024 + EVP_MAX_BLOCK_LENGTH];
-     int inlen, outlen;
-     EVP_CIPHER_CTX *ctx;
-     /*
-      * Bogus key and IV: we'd normally set these from
-      * another source.
-      */
-     unsigned char key[] = "0123456789abcdeF";
-     unsigned char iv[] = "1234567887654321";
+char* encrypt(unsigned char *plaintext) {
+    //need to initialize a key and an IV
+    // EVP_aes_128_ctr is parallelizable both directions
+    printf("Pla: ");
+    for (int i = 0; i < strlen((char *) plaintext); i++) {
+        printf("%x", plaintext[i]);
+    }
+    printf("\n");    
 
-     /* Don't set key or IV right away; we want to check lengths */
-     ctx = EVP_CIPHER_CTX_new();
-     EVP_CipherInit_ex(ctx, EVP_aes_128_cbc(), NULL, NULL, NULL,
-                       do_encrypt);
-     OPENSSL_assert(EVP_CIPHER_CTX_key_length(ctx) == 16);
-     OPENSSL_assert(EVP_CIPHER_CTX_iv_length(ctx) == 16);
+    unsigned char buf[256];
+    unsigned char key[17];
+    memset(key, 'A', 16);
+    key[16] = '\0';
 
-     /* Now we can set key and IV */
-     EVP_CipherInit_ex(ctx, NULL, NULL, key, iv, do_encrypt);
+    unsigned char iv[17];
+    memset(iv, 'B', 16);
+    iv[16] = '\0';
 
-     for (;;) {
-         inlen = fread(inbuf, 1, 1024, in);
-         if (inlen <= 0)
-             break;
-         if (!EVP_CipherUpdate(ctx, outbuf, &outlen, inbuf, inlen)) {
-             /* Error */
-             EVP_CIPHER_CTX_free(ctx);
-             return 0;
-         }
-         fwrite(outbuf, 1, outlen, out);
-     }
-     if (!EVP_CipherFinal_ex(ctx, outbuf, &outlen)) {
-         /* Error */
-         EVP_CIPHER_CTX_free(ctx);
-         return 0;
-     }
-     fwrite(outbuf, 1, outlen, out);
+    EVP_CIPHER_CTX *ctx;
+    ctx = EVP_CIPHER_CTX_new();
+    EVP_EncryptInit_ex(ctx, EVP_aes_128_cfb(), NULL, key, iv);
+    int outlen, tmplen;
 
-     EVP_CIPHER_CTX_free(ctx);
-     return 1;
- }
+    EVP_EncryptUpdate(ctx, buf, &outlen, plaintext, strlen((char *) plaintext));
+    EVP_EncryptFinal_ex(ctx, buf + outlen, &tmplen);
+    outlen += tmplen;
+
+    printf("Enc: ");
+    for (int i = 0; i < outlen; i++) {
+        printf("%x", buf[i]);
+    }
+    printf("\n");
+
+    EVP_CIPHER_CTX_free(ctx);
+
+
+    ctx = EVP_CIPHER_CTX_new();
+    EVP_DecryptInit_ex(ctx, EVP_aes_128_cfb(), NULL, key, iv);
+    outlen = 0;
+    tmplen = 0;
+    unsigned char buf2[256];
+
+    EVP_DecryptUpdate(ctx, buf2, &outlen, buf, strlen((char *)buf));
+    EVP_DecryptFinal_ex(ctx, buf2 + outlen, &tmplen);
+    outlen += tmplen;
+
+    printf("Dec: ");
+    for (int i = 0; i < outlen; i++) {
+        printf("%x", buf2[i]);
+    }
+    printf("\n");
+
+    EVP_CIPHER_CTX_free(ctx);
+
+
+    return NULL;
+}
 
 int main(int argc, char *argv[]) {
     printf("All good!\n");
+    encrypt("abbb0jdf[iasodfhoasidf");
 }
